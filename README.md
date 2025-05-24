@@ -28,7 +28,15 @@ A simple analysis tool for Keyboard Maestro usage logs on macro usage, keyboard 
 ```bash
 git clone https://github.com/Joilence/kmla.git
 cd kmla
+
+# install bun
+brew tap oven-sh/bun
+brew install bun
+
+# install dependencies
 bun install
+
+# run the app
 bun dev
 ```
 
