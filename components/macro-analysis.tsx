@@ -131,7 +131,7 @@ export default function MacroAnalysis({
           allMacroStats={[]} 
           selectedMacroNames={new Set()} 
           onSelectionChange={() => {}} 
-          title="Macro Statistics"
+          title="Available Macros"
           description="No macro data available."
         />
       </div>

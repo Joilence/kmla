@@ -34,7 +34,16 @@ export default function TimeAnalysis({
   const [viewMode, setViewMode] = useState<"hourly" | "daily" | "weekly">("daily")
 
   const timeData = useMemo(() => {
-    if (data.length === 0) return { hourly: [], daily: [], weekly: [] }
+    let dataForProcessing: LogEntry[];
+
+    if (selectedMacroNames && selectedMacroNames.size > 0) {
+      dataForProcessing = data.filter(entry => selectedMacroNames.has(entry.macroName));
+    } else {
+      // If no macros are selected, treat as no data for these charts.
+      dataForProcessing = [];
+    }
+
+    if (dataForProcessing.length === 0) return { hourly: [], daily: [], weekly: [] }
 
     // Hourly analysis
     const hourlyStats = new Map<number, number>()
@@ -48,7 +57,7 @@ export default function TimeAnalysis({
     const weekdays = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
     weekdays.forEach((day) => weeklyStats.set(day, 0))
 
-    data.forEach((entry) => {
+    dataForProcessing.forEach((entry) => {
       const date = new Date(entry.timestamp)
 
       // Hour of day (0-23)
@@ -86,12 +95,9 @@ export default function TimeAnalysis({
         count: weeklyStats.get(day) || 0,
       })),
     }
-  }, [data])
+  }, [data, selectedMacroNames])
 
   const currentData = timeData[viewMode]
-  const totalUsage = currentData.reduce((sum, item) => sum + item.count, 0)
-  const averageUsage = totalUsage > 0 && currentData.length > 0 ? totalUsage / currentData.length : 0
-
   const peakTime: PeakTimeInfo = useMemo(() => {
     if (currentData.length === 0) return { count: 0, label: "N/A" };
 
@@ -113,28 +119,6 @@ export default function TimeAnalysis({
       label: label
     };
   }, [currentData]);
-
-  const getTimeLabel = () => {
-    switch (viewMode) {
-      case "hourly":
-        return "Hour of Day"
-      case "daily":
-        return "Date"
-      case "weekly":
-        return "Day of Week"
-    }
-  }
-
-  const getXAxisKey = () => {
-    switch (viewMode) {
-      case "hourly":
-        return "hour"
-      case "daily":
-        return "dayName"
-      case "weekly":
-        return "day"
-    }
-  }
 
   // Show empty state if no data
   if (data.length === 0) {
@@ -158,6 +142,54 @@ export default function TimeAnalysis({
         )}
       </div>
     )
+  }
+
+  // New: Show empty state if filters result in no data, but initial data was present
+  if (currentData.length === 0) {
+    return (
+      <div className="space-y-6">
+        <Card>
+          <CardContent className="flex items-center justify-center py-12">
+            <div className="text-center">
+              <p className="text-2xl font-semibold text-muted-foreground mb-2">No Data for Selected Filters</p>
+              <p className="text-muted-foreground">Try adjusting your macro selection or date range.</p>
+            </div>
+          </CardContent>
+        </Card>
+        <SharedMacroStatisticsTable 
+          allMacroStats={allMacroStats} 
+          selectedMacroNames={selectedMacroNames} 
+          onSelectionChange={onMacroSelectionChange} 
+          title="Available Macros"
+          description="Select macros below to filter the time-based charts above."
+        />
+      </div>
+    );
+  }
+
+  const totalUsage = currentData.reduce((sum, item) => sum + item.count, 0)
+  const averageUsage = totalUsage > 0 && currentData.length > 0 ? totalUsage / currentData.length : 0
+
+  const getTimeLabel = () => {
+    switch (viewMode) {
+      case "hourly":
+        return "Hour of Day"
+      case "daily":
+        return "Date"
+      case "weekly":
+        return "Day of Week"
+    }
+  }
+
+  const getXAxisKey = () => {
+    switch (viewMode) {
+      case "hourly":
+        return "hour"
+      case "daily":
+        return "dayName"
+      case "weekly":
+        return "day"
+    }
   }
 
   return (
@@ -251,7 +283,7 @@ export default function TimeAnalysis({
         allMacroStats={allMacroStats} 
         selectedMacroNames={selectedMacroNames} 
         onSelectionChange={onMacroSelectionChange} 
-        title="Available Macros (Filter Time Analysis)"
+        title="Available Macros"
         description="Select macros below to filter the time-based charts above."
       />
     </div>

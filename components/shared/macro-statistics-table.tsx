@@ -73,7 +73,7 @@ export default function SharedMacroStatisticsTable({
   allMacroStats,
   selectedMacroNames,
   onSelectionChange,
-  title = "Macro Statistics",
+  title = "Available Macros",
   description
 }: SharedMacroStatisticsTableProps) {
   const gridApiRef = useRef<GridApi | null>(null);
