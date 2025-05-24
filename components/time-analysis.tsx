@@ -5,12 +5,21 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from "recharts"
 import type { LogEntry } from "@/lib/log-parser"
+import SharedMacroStatisticsTable, { type MacroStatEntry } from "@/components/shared/macro-statistics-table"
 
 interface TimeAnalysisProps {
   data: LogEntry[]
+  allMacroStats: MacroStatEntry[]
+  selectedMacroNames: Set<string>
+  onMacroSelectionChange: (newSelectedNames: Set<string>) => void
 }
 
-export default function TimeAnalysis({ data }: TimeAnalysisProps) {
+export default function TimeAnalysis({ 
+  data, 
+  allMacroStats, 
+  selectedMacroNames, 
+  onMacroSelectionChange 
+}: TimeAnalysisProps) {
   const [viewMode, setViewMode] = useState<"hourly" | "daily" | "weekly">("daily")
 
   const timeData = useMemo(() => {
@@ -70,7 +79,7 @@ export default function TimeAnalysis({ data }: TimeAnalysisProps) {
 
   const currentData = timeData[viewMode]
   const totalUsage = currentData.reduce((sum, item) => sum + item.count, 0)
-  const averageUsage = totalUsage / currentData.length
+  const averageUsage = totalUsage > 0 && currentData.length > 0 ? totalUsage / currentData.length : 0
 
   const getTimeLabel = () => {
     switch (viewMode) {
@@ -94,10 +103,10 @@ export default function TimeAnalysis({ data }: TimeAnalysisProps) {
     }
   }
 
-  const peakTime = currentData.reduce(
+  const peakTime = currentData.length > 0 ? currentData.reduce(
     (max, item) => (item.count > max.count ? item : max),
-    currentData[0] || { count: 0 },
-  )
+    currentData[0],
+  ) : { count: 0 }
 
   // Show empty state if no data
   if (data.length === 0) {
@@ -106,11 +115,19 @@ export default function TimeAnalysis({ data }: TimeAnalysisProps) {
         <Card>
           <CardContent className="flex items-center justify-center py-12">
             <div className="text-center">
-              <p className="text-2xl font-semibold text-muted-foreground mb-2">Insufficient Data</p>
-              <p className="text-muted-foreground">Load log data to view time analysis</p>
+              <p className="text-2xl font-semibold text-muted-foreground mb-2">Insufficient Data for Time Analysis</p>
+              <p className="text-muted-foreground">Load log data to view time analysis patterns.</p>
             </div>
           </CardContent>
         </Card>
+        {allMacroStats && allMacroStats.length > 0 && (
+          <SharedMacroStatisticsTable 
+            allMacroStats={allMacroStats} 
+            selectedMacroNames={selectedMacroNames} 
+            onSelectionChange={onMacroSelectionChange} 
+            title="Available Macros (Shared)"
+          />
+        )}
       </div>
     )
   }
@@ -123,7 +140,7 @@ export default function TimeAnalysis({ data }: TimeAnalysisProps) {
           <CardContent className="p-6">
             <div className="text-center">
               <p className="text-2xl font-bold">{totalUsage}</p>
-              <p className="text-sm text-muted-foreground">Total Executions</p>
+              <p className="text-sm text-muted-foreground">Total Executions ({viewMode})</p>
             </div>
           </CardContent>
         </Card>
@@ -140,9 +157,9 @@ export default function TimeAnalysis({ data }: TimeAnalysisProps) {
         <Card>
           <CardContent className="p-6">
             <div className="text-center">
-              <p className="text-2xl font-bold">{peakTime.count}</p>
+              <p className="text-2xl font-bold">{(peakTime as any).count || 0}</p>
               <p className="text-sm text-muted-foreground">
-                Peak: {viewMode === "hourly" ? (peakTime as any).hour : viewMode === "daily" ? (peakTime as any).dayName : (peakTime as any).day}
+                Peak ({viewMode}): {(peakTime as any).hour || (peakTime as any).dayName || (peakTime as any).day || "N/A"}
               </p>
             </div>
           </CardContent>
@@ -201,6 +218,12 @@ export default function TimeAnalysis({ data }: TimeAnalysisProps) {
         </CardContent>
       </Card>
 
+      {/* Shared Macro Statistics Table */}
+      <SharedMacroStatisticsTable 
+        allMacroStats={allMacroStats} 
+        selectedMacroNames={selectedMacroNames} 
+        onSelectionChange={onMacroSelectionChange} 
+      />
     </div>
   )
 }

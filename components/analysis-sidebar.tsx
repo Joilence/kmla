@@ -20,6 +20,9 @@ interface AnalysisSidebarProps {
   sidebarOpen: boolean
   onLogDataChange: (data: LogEntry[]) => void
   onAnalysisOptionsChange: (options: AnalysisOptions) => void
+  uniqueMacros: number
+  totalExecutions: number
+  effectiveDateRange: { start: Date; end: Date } | null
 }
 
 export default function AnalysisSidebar({ 
@@ -27,7 +30,10 @@ export default function AnalysisSidebar({
   analysisOptions, 
   sidebarOpen, 
   onLogDataChange, 
-  onAnalysisOptionsChange 
+  onAnalysisOptionsChange,
+  uniqueMacros,
+  totalExecutions,
+  effectiveDateRange
 }: AnalysisSidebarProps) {
   // Local state for sidebar-specific functionality
   const [loadDataOpen, setLoadDataOpen] = useState(true)

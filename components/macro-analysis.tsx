@@ -26,9 +26,13 @@ import type { ColDef, GridApi, GridReadyEvent, SelectionChangedEvent, RowClassPa
 // Register AG Grid modules
 ModuleRegistry.registerModules([AllCommunityModule])
 import type { LogEntry } from "@/lib/log-parser"
+import SharedMacroStatisticsTable, { type MacroStatEntry } from "@/components/shared/macro-statistics-table"
 
 interface MacroAnalysisProps {
-  data: LogEntry[]
+  // data: LogEntry[]; // This might be removable if all info truly comes from allMacroStats
+  allMacroStats: MacroStatEntry[];
+  selectedMacroNames: Set<string>;
+  onSelectionChange: (newSelectedNames: Set<string>) => void;
 }
 
 const PIE_COLORS = [
@@ -79,126 +83,49 @@ const renderCustomizedPieLabel = (props: any) => {
   );
 };
 
-export default function MacroAnalysis({ data }: MacroAnalysisProps) {
+export default function MacroAnalysis({
+  // data, // Original data prop, potentially unused now for core logic if allMacroStats is sufficient
+  allMacroStats,
+  selectedMacroNames,
+  onSelectionChange,
+}: MacroAnalysisProps) {
   const [topN, setTopN] = useState(10)
   const [searchTerm, setSearchTerm] = useState("")
   const gridApiRef = useRef<GridApi | null>(null)
   const [isGridReady, setIsGridReady] = useState(false)
-  const [selectedMacroNames, setSelectedMacroNames] = useState<Set<string>>(new Set())
   const [chartType, setChartType] = useState<"bar" | "pie">("bar")
 
-  const macroStats = useMemo(() => {
-    const stats = new Map<
-      string,
-      {
-        count: number
-        firstSeen: Date
-        lastSeen: Date
-        triggers: Set<string>
-      }
-    >()
+  // macroStats calculation is removed, as it now comes from props as allMacroStats
+  // const allMacroNamesFromStats = useMemo(() => new Set(allMacroStats.map(m => m.name)), [allMacroStats]); // This can be recreated if needed locally, or passed if parent computes it
 
-    data.forEach((entry) => {
-      const existing = stats.get(entry.macroName) || {
-        count: 0,
-        firstSeen: new Date(entry.timestamp),
-        lastSeen: new Date(entry.timestamp),
-        triggers: new Set(),
-      }
+  // Effect to initialize selection to all macros when allMacroStats prop changes
+  // This might be redundant if parent (app/page.tsx) also does this. 
+  // For now, let's assume parent handles initial full selection.
+  // If this component should independently reset to all when its view becomes active and allMacroStats change, keep it.
+  // To avoid potential conflicts, if app/page.tsx is the source of truth for initialization, remove this useEffect.
+  // For now, I will keep it but rely on parent for initial overall selection passed via selectedMacroNames prop.
+  // The SharedMacroStatisticsTable will primarily use the selectedMacroNames prop for its state.
 
-      existing.count++
-      existing.lastSeen = new Date(entry.timestamp)
-      if (new Date(entry.timestamp) < existing.firstSeen) {
-        existing.firstSeen = new Date(entry.timestamp)
-      }
-      existing.triggers.add(entry.trigger)
-
-      stats.set(entry.macroName, existing)
-    })
-
-    return Array.from(stats.entries()).map(([name, stat]) => {
-      const daysDiff = Math.max(
-        1,
-        Math.ceil((stat.lastSeen.getTime() - stat.firstSeen.getTime()) / (1000 * 60 * 60 * 24)),
-      )
-      return {
-        name,
-        count: stat.count,
-        avgPerDay: (stat.count / daysDiff).toFixed(1),
-        firstSeen: stat.firstSeen,
-        lastSeen: stat.lastSeen,
-        triggers: Array.from(stat.triggers).join(", "),
-        daysDiff,
-      }
-    })
-  }, [data])
-
-  const allMacroNamesFromStats = useMemo(() => new Set(macroStats.map(m => m.name)), [macroStats]);
-
-  useEffect(() => {
-    if (macroStats.length > 0) {
-      setSelectedMacroNames(new Set(macroStats.map(m => m.name)));
-    } else {
-      setSelectedMacroNames(new Set());
-    }
-  }, [macroStats]);
-  
-  const gridRowData = useMemo(() => {
-    let filtered = macroStats;
-    if (searchTerm) {
-      filtered = filtered.filter((macro) => macro.name.toLowerCase().includes(searchTerm.toLowerCase()));
-    }
-    return filtered.sort((a, b) => b.count - a.count);
-  }, [macroStats, searchTerm]);
-
-  useEffect(() => {
-    if (isGridReady && gridApiRef.current) {
-      gridApiRef.current.forEachNode(node => {
-        if (node.data) {
-          const shouldBeSelected = selectedMacroNames.has(node.data.name);
-          if (node.isSelected() !== shouldBeSelected) {
-            node.setSelected(shouldBeSelected, false, 'api'); 
-          }
-        }
-      });
-    }
-  }, [selectedMacroNames, gridRowData, isGridReady]);
-
-  const onGridReady = (params: GridReadyEvent) => {
-    gridApiRef.current = params.api;
-    setIsGridReady(true);
-  };
-
-  const onSelectionChanged = (event: SelectionChangedEvent) => {
-    if (event.api) {
-      const currentGridSelectedNames = new Set(event.api.getSelectedNodes().map(node => node.data.name as string));
-      
-      setSelectedMacroNames(prevOverallSelectedNames => {
-        const newOverallSelectedNames = new Set(prevOverallSelectedNames);
-        event.api.forEachNode(node => {
-          if (node.data) {
-            const macroName = node.data.name as string;
-            if (currentGridSelectedNames.has(macroName)) {
-              newOverallSelectedNames.add(macroName);
-            } else {
-              newOverallSelectedNames.delete(macroName);
-            }
-          }
-        });
-        return newOverallSelectedNames;
-      });
-    }
-  };
-  
+  // This component now directly uses selectedMacroNames from props to derive data for its charts.
   const macrosForAnalysis = useMemo(() => {
-    if (selectedMacroNames.size === 0 && macroStats.length > 0) {
+    // If allMacroStats is not yet available or empty, return empty array
+    if (!allMacroStats || allMacroStats.length === 0) {
+        return [];
+    }
+    // If nothing is selected (and there is data), effectively filter to show nothing for analysis
+    if (selectedMacroNames.size === 0 && allMacroStats.length > 0) {
       return []; 
     }
-    if (selectedMacroNames.size === allMacroNamesFromStats.size || macroStats.length === 0) {
-      return macroStats; 
+    // If all are selected (based on comparing selectedMacroNames size to allMacroStats length) OR there is no data
+    // This logic might need adjustment if allMacroNamesFromStats was crucial. 
+    // A simpler check: if selectedMacroNames covers all names in allMacroStats
+    const allNamesFromProps = new Set(allMacroStats.map(m => m.name));
+    if (selectedMacroNames.size === allNamesFromProps.size || allMacroStats.length === 0) {
+      return allMacroStats; 
     }
-    return macroStats.filter(macro => selectedMacroNames.has(macro.name));
-  }, [macroStats, selectedMacroNames, allMacroNamesFromStats]);
+    // Filter allMacroStats by what's in selectedMacroNames
+    return allMacroStats.filter(macro => selectedMacroNames.has(macro.name));
+  }, [allMacroStats, selectedMacroNames]);
 
   const chartDataInput = useMemo(() => {
       return macrosForAnalysis.sort((a, b) => b.count - a.count);
@@ -254,7 +181,7 @@ export default function MacroAnalysis({ data }: MacroAnalysisProps) {
     }
   ]
 
-  if (data.length === 0) {
+  if (!allMacroStats || allMacroStats.length === 0) { 
     return (
       <div className="space-y-6">
         <Card>
@@ -265,6 +192,14 @@ export default function MacroAnalysis({ data }: MacroAnalysisProps) {
             </div>
           </CardContent>
         </Card>
+        {/* Optionally, render the shared table with a message if it also has no data */}
+        <SharedMacroStatisticsTable 
+          allMacroStats={[]} 
+          selectedMacroNames={new Set()} 
+          onSelectionChange={() => {}} 
+          title="Macro Statistics"
+          description="No macro data available."
+        />
       </div>
     )
   }
@@ -285,13 +220,13 @@ export default function MacroAnalysis({ data }: MacroAnalysisProps) {
                 onChange={(e) => {
                   const parsedValue = Number.parseInt(e.target.value);
                   if (isNaN(parsedValue)) {
-                    setTopN(10); // Default if parsing fails
+                    setTopN(10); 
                   } else {
-                    setTopN(Math.max(1, Math.min(parsedValue, 20))); // Enforce min 1 and max 20
+                    setTopN(Math.max(1, Math.min(parsedValue, 20))); 
                   }
                 }}
                 min={1}
-                max={20} // Capped at 20
+                max={20} 
                 className="w-20"
               />
             </div>
@@ -392,42 +327,11 @@ export default function MacroAnalysis({ data }: MacroAnalysisProps) {
         </CardContent>
       </Card>
 
-      {/* AG Grid Table */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Macro Statistics</CardTitle>
-          <CardDescription>{gridRowData.length} macros found</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div 
-            style={{
-              height: '600px',
-              width: '100%',
-              '--ag-checkbox-checked-color': 'black',
-              '--ag-accent-color': 'black',
-            } as React.CSSProperties}
-          >
-            <AgGridReact
-              theme={themeQuartz}
-              rowData={gridRowData}
-              columnDefs={columnDefs}
-              defaultColDef={{
-                resizable: true,
-                sortable: true,
-                filter: true,
-              }}
-              pagination={true}
-              paginationPageSize={20}
-              rowSelection="multiple"
-              rowMultiSelectWithClick={true}
-              suppressRowClickSelection={false}
-              onGridReady={onGridReady}
-              onSelectionChanged={onSelectionChanged}
-              animateRows={true}
-            />
-          </div>
-        </CardContent>
-      </Card>
+      <SharedMacroStatisticsTable 
+        allMacroStats={allMacroStats} 
+        selectedMacroNames={selectedMacroNames} 
+        onSelectionChange={onSelectionChange} 
+      />
     </div>
   )
 }

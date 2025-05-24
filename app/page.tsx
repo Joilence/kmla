@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { BarChart3, Keyboard, Calendar, Settings } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
@@ -10,6 +10,7 @@ import MacroAnalysis from "@/components/macro-analysis"
 import KeyboardAnalysis from "@/components/keyboard-analysis"
 import TimeAnalysis from "@/components/time-analysis"
 import { type LogEntry, type AnalysisOptions } from "@/lib/log-parser"
+import { type MacroStatEntry } from "@/components/shared/macro-statistics-table"
 
 export default function Home() {
   const [logData, setLogData] = useState<LogEntry[]>([])
@@ -41,22 +42,85 @@ export default function Home() {
 
     // Apply deduplication
     if (analysisOptions.deduplicate) {
-      filtered = filtered.filter((entry, index) => {
-        if (index === 0) return true
-
-        const prevEntry = filtered[index - 1]
-        const timeDiff = new Date(entry.timestamp).getTime() - new Date(prevEntry.timestamp).getTime()
-
-        return !(entry.macroName === prevEntry.macroName && timeDiff < analysisOptions.deduplicationWindow)
-      })
+      // Ensure consistent sorting for deduplication, typically by timestamp
+      // If logData is already sorted by timestamp, this explicit sort might be redundant but safe.
+      const sortedForDeduplication = [...filtered].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+      
+      filtered = sortedForDeduplication.filter((entry, index, arr) => {
+        if (index === 0) return true;      
+        const prevEntry = arr[index - 1];
+        const timeDiff = new Date(entry.timestamp).getTime() - new Date(prevEntry.timestamp).getTime();
+        return !(entry.macroName === prevEntry.macroName && timeDiff < analysisOptions.deduplicationWindow);
+      });
     }
-
     return filtered
   }, [logData, analysisOptions])
 
+  // Centralized macroStats calculation
+  const macroStats: MacroStatEntry[] = useMemo(() => {
+    const stats = new Map<
+      string,
+      {
+        count: number;
+        firstSeen: Date;
+        lastSeen: Date;
+        triggers: Set<string>;
+      }
+    >();
 
+    filteredData.forEach((entry) => {
+      if (!entry.macroName) return; // Basic guard
 
-  const stats = useMemo(() => {
+      const existing = stats.get(entry.macroName) || {
+        count: 0,
+        firstSeen: new Date(entry.timestamp),
+        lastSeen: new Date(entry.timestamp),
+        triggers: new Set<string>(),
+      };
+
+      existing.count++;
+      existing.lastSeen = new Date(entry.timestamp);
+      if (new Date(entry.timestamp) < existing.firstSeen) {
+        existing.firstSeen = new Date(entry.timestamp);
+      }
+      existing.triggers.add(entry.trigger);
+      stats.set(entry.macroName, existing);
+    });
+
+    return Array.from(stats.entries()).map(([name, stat]) => {
+      const daysDiff = Math.max(
+        1,
+        Math.ceil(
+          (stat.lastSeen.getTime() - stat.firstSeen.getTime()) /
+            (1000 * 60 * 60 * 24)
+        )
+      );
+      return {
+        name,
+        count: stat.count,
+        avgPerDay: (stat.count / daysDiff).toFixed(1),
+        firstSeen: stat.firstSeen,
+        lastSeen: stat.lastSeen,
+        triggers: Array.from(stat.triggers).join(", "),
+        daysDiff,
+      };
+    });
+  }, [filteredData]);
+
+  // Shared state for selected macro names
+  const [selectedMacroNames, setSelectedMacroNames] = useState<Set<string>>(new Set());
+
+  // Effect to initialize/reset selection when macroStats change
+  useEffect(() => {
+    if (macroStats.length > 0) {
+      setSelectedMacroNames(new Set(macroStats.map(m => m.name)));
+    } else {
+      setSelectedMacroNames(new Set());
+    }
+  }, [macroStats]);
+
+  // General stats for display - can be kept as is
+  const generalDisplayStats = useMemo(() => { // Renamed to avoid confusion with macroStats for table
     const uniqueMacros = new Set(filteredData.map((entry) => entry.macroName)).size
     const totalExecutions = filteredData.length
     const dateRange =
@@ -105,6 +169,9 @@ export default function Home() {
             sidebarOpen={sidebarOpen}
             onLogDataChange={setLogData}
             onAnalysisOptionsChange={setAnalysisOptions}
+            uniqueMacros={generalDisplayStats.uniqueMacros}
+            totalExecutions={generalDisplayStats.totalExecutions}
+            effectiveDateRange={generalDisplayStats.dateRange}
           />
 
           {/* Analysis Tabs */}
@@ -126,7 +193,12 @@ export default function Home() {
               </TabsList>
 
               <TabsContent value="macros" className="mt-6">
-                <MacroAnalysis data={filteredData} />
+                <MacroAnalysis 
+                  data={filteredData}
+                  allMacroStats={macroStats}
+                  selectedMacroNames={selectedMacroNames}
+                  onSelectionChange={setSelectedMacroNames}
+                />
               </TabsContent>
 
               <TabsContent value="keyboard" className="mt-6">
@@ -134,7 +206,12 @@ export default function Home() {
               </TabsContent>
 
               <TabsContent value="time" className="mt-6">
-                <TimeAnalysis data={filteredData} />
+                <TimeAnalysis 
+                  data={filteredData}
+                  allMacroStats={macroStats}
+                  selectedMacroNames={selectedMacroNames}
+                  onMacroSelectionChange={setSelectedMacroNames}
+                />
               </TabsContent>
             </Tabs>
           </div>
