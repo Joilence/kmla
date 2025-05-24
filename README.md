@@ -2,7 +2,7 @@
 
 A simple analysis tool for Keyboard Maestro usage logs on macro usage, keyboard activity, and time patterns.
 
-[![Deployed on Vercel](https://img.shields.io/badge/Deployed%20on-Vercel-black?style=for-the-badge&logo=vercel)](https://vercel.com/jonathans-projects-de646761/kmla)
+[![Deployed on Vercel](https://img.shields.io/badge/Deployed%20on-Vercel-black?style=for-the-badge&logo=vercel)](https://vercel.com/jyang-default/kmla)
 [![Built with v0](https://img.shields.io/badge/Built%20with-v0.dev-black?style=for-the-badge)](https://v0.dev/chat/projects/9jednIVl57y)
 
 <p align="center">
@@ -21,7 +21,7 @@ A simple analysis tool for Keyboard Maestro usage logs on macro usage, keyboard 
 
 ## Quick Start
 
-[v0 deployment](https://vercel.com/jonathans-projects-de646761/kmla)
+[v0 deployment](https://kmla-jyang-default.vercel.app)
 
 ### Run locally
 
