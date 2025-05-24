@@ -9,8 +9,8 @@ import AnalysisSidebar from "@/components/analysis-sidebar"
 import MacroAnalysis from "@/components/macro-analysis"
 import KeyboardAnalysis from "@/components/keyboard-analysis"
 import TimeAnalysis from "@/components/time-analysis"
-import { type LogEntry, type AnalysisOptions } from "@/lib/log-parser"
-import { type MacroStatEntry } from "@/components/shared/macro-statistics-table"
+import type { LogEntry, AnalysisOptions } from "@/lib/log-parser"
+import type { MacroStatEntry } from "@/components/shared/macro-statistics-table"
 
 export default function Home() {
   const [logData, setLogData] = useState<LogEntry[]>([])

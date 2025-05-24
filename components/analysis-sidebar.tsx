@@ -250,7 +250,7 @@ export default function AnalysisSidebar({
                         id="maxLines"
                         type="number"
                         value={maxLines}
-                        onChange={(e) => setMaxLines(parseInt(e.target.value) || 10000)}
+                        onChange={(e) => setMaxLines(Number.parseInt(e.target.value) || 10000)}
                         min={100}
                         max={100000}
                         step={1000}
@@ -431,7 +431,7 @@ export default function AnalysisSidebar({
                           onChange={(e) => 
                             onAnalysisOptionsChange({
                               ...analysisOptions,
-                              deduplicationWindow: parseInt(e.target.value) || 0
+                              deduplicationWindow: Number.parseInt(e.target.value) || 0
                             })
                           }
                           disabled={!analysisOptions.deduplicate}
