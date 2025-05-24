@@ -1,11 +1,16 @@
 "use client"
 
-import { useMemo } from "react"
+import { useMemo, useState, useEffect, useRef } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { AgGridReact } from "ag-grid-react"
 import { ModuleRegistry, AllCommunityModule, themeQuartz } from "ag-grid-community"
-import type { ColDef } from "ag-grid-community"
+import type {
+  ColDef,
+  GridApi,
+  GridReadyEvent,
+  SelectionChangedEvent,
+} from "ag-grid-community"
 import type { LogEntry } from "@/lib/log-parser"
 
 // Register AG Grid modules
@@ -31,6 +36,10 @@ const MODIFIER_SYMBOLS: Record<string, string> = {
 }
 
 export default function KeyboardAnalysis({ data }: KeyboardAnalysisProps) {
+  const hotKeyCombinationGridApiRef = useRef<GridApi | null>(null);
+  const [isHotKeyCombinationGridReady, setIsHotKeyCombinationGridReady] = useState(false);
+  const [selectedCombinations, setSelectedCombinations] = useState<Set<string>>(new Set());
+
   const hotKeyData = useMemo(() => {
     const hotKeys = data.filter((entry) => entry.trigger.includes("Hot Key"))
 
@@ -66,13 +75,73 @@ export default function KeyboardAnalysis({ data }: KeyboardAnalysisProps) {
     }
   }, [data])
 
+  const allCombinationNames = useMemo(() => new Set(hotKeyData.combinationStats.map(([combo]) => combo)), [hotKeyData.combinationStats]);
+
+  // Effect to initialize selection to all combinations when data changes
+  useEffect(() => {
+    if (hotKeyData.combinationStats.length > 0) {
+      setSelectedCombinations(new Set(hotKeyData.combinationStats.map(([combo]) => combo)));
+    } else {
+      setSelectedCombinations(new Set());
+    }
+  }, [hotKeyData.combinationStats]);
+
+  const hotKeyGridRowData = useMemo(() => {
+    return hotKeyData.combinationStats.map(([combination, count], index) => ({
+      rank: index + 1,
+      combination,
+      count
+    }));
+  }, [hotKeyData.combinationStats]);
+
+  // Effect to synchronize AG Grid's visual selection with selectedCombinations state
+  useEffect(() => {
+    if (isHotKeyCombinationGridReady && hotKeyCombinationGridApiRef.current) {
+      hotKeyCombinationGridApiRef.current.forEachNode(node => {
+        if (node.data && node.data.combination) {
+          const shouldBeSelected = selectedCombinations.has(node.data.combination);
+          if (node.isSelected() !== shouldBeSelected) {
+            node.setSelected(shouldBeSelected, false, 'api');
+          }
+        }
+      });
+    }
+  }, [selectedCombinations, hotKeyGridRowData, isHotKeyCombinationGridReady]);
+
+  const onHotKeyGridReady = (params: GridReadyEvent) => {
+    hotKeyCombinationGridApiRef.current = params.api;
+    setIsHotKeyCombinationGridReady(true);
+  };
+
+  const onHotKeySelectionChanged = (event: SelectionChangedEvent) => {
+    if (event.api) {
+      const currentGridSelectedCombinations = new Set(
+        event.api.getSelectedNodes().map(node => node.data.combination as string)
+      );
+      
+      setSelectedCombinations(prevOverallSelected => {
+        const newOverallSelected = new Set(prevOverallSelected);
+        event.api.forEachNode(node => {
+          if (node.data && node.data.combination) {
+            const comboName = node.data.combination as string;
+            if (currentGridSelectedCombinations.has(comboName)) {
+              newOverallSelected.add(comboName);
+            } else {
+              newOverallSelected.delete(comboName);
+            }
+          }
+        });
+        return newOverallSelected;
+      });
+    }
+  };
+
   const getKeyIntensity = (key: string) => {
     const count = hotKeyData.keyStats.find(([k]) => k === key.toUpperCase())?.[1] || 0
     if (count === 0) return 0
     
     const maxCount = Math.max(...hotKeyData.keyStats.map(([, count]) => count), 1)
     
-    // Use log scale to better distribute the intensity values
     const logCount = Math.log(count + 1)
     const logMaxCount = Math.log(maxCount + 1)
     
@@ -102,6 +171,40 @@ export default function KeyboardAnalysis({ data }: KeyboardAnalysisProps) {
       </div>
     )
   }
+
+  const hotkeyColumnDefs: ColDef[] = [
+    {
+      headerName: "",
+      checkboxSelection: true,
+      headerCheckboxSelection: true,
+      width: 50,
+      pinned: 'left',
+      resizable: false,
+      sortable: false,
+      filter: false,
+    },
+    {
+      headerName: "Rank",
+      field: "rank",
+      sortable: true,
+      filter: "agNumberColumnFilter",
+      flex: 1
+    },
+    {
+      headerName: "Hotkey Combination",
+      field: "combination",
+      sortable: true,
+      filter: true,
+      flex: 3
+    },
+    {
+      headerName: "Usage Count",
+      field: "count",
+      sortable: true,
+      filter: "agNumberColumnFilter",
+      flex: 2
+    }
+  ];
 
   return (
     <div className="space-y-6">
@@ -228,37 +331,18 @@ export default function KeyboardAnalysis({ data }: KeyboardAnalysisProps) {
           <CardDescription>{hotKeyData.combinationStats.length} hotkey combinations found</CardDescription>
         </CardHeader>
         <CardContent>
-          <div style={{ height: '600px', width: '100%' }}>
+          <div 
+            style={{
+              height: '600px', 
+              width: '100%',
+              '--ag-checkbox-checked-color': 'black',
+              '--ag-accent-color': 'black',
+            } as React.CSSProperties}
+          >
             <AgGridReact
               theme={themeQuartz}
-              rowData={hotKeyData.combinationStats.map(([combination, count], index) => ({
-                rank: index + 1,
-                combination,
-                count
-              }))}
-              columnDefs={[
-                {
-                  headerName: "Rank",
-                  field: "rank",
-                  sortable: true,
-                  filter: "agNumberColumnFilter",
-                  flex: 1
-                },
-                {
-                  headerName: "Hotkey Combination",
-                  field: "combination",
-                  sortable: true,
-                  filter: true,
-                  flex: 3
-                },
-                {
-                  headerName: "Usage Count",
-                  field: "count",
-                  sortable: true,
-                  filter: "agNumberColumnFilter",
-                  flex: 2
-                }
-              ]}
+              rowData={hotKeyGridRowData}
+              columnDefs={hotkeyColumnDefs} 
               defaultColDef={{
                 resizable: true,
                 sortable: true,
@@ -266,10 +350,11 @@ export default function KeyboardAnalysis({ data }: KeyboardAnalysisProps) {
               }}
               pagination={true}
               paginationPageSize={20}
-              rowSelection={{
-                mode: "singleRow",
-                enableClickSelection: false
-              }}
+              rowSelection="multiple"
+              rowMultiSelectWithClick={true}
+              suppressRowClickSelection={false}
+              onGridReady={onHotKeyGridReady}
+              onSelectionChanged={onHotKeySelectionChanged}
               animateRows={true}
             />
           </div>
