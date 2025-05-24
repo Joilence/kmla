@@ -2,7 +2,6 @@
 
 import { useMemo, useState, useEffect, useRef } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
 import { AgGridReact } from "ag-grid-react"
 import { ModuleRegistry, AllCommunityModule, themeQuartz } from "ag-grid-community"
 import type {
@@ -74,8 +73,6 @@ export default function KeyboardAnalysis({ data }: KeyboardAnalysisProps) {
       combinationStats: Array.from(combinationStats.entries()).sort((a, b) => b[1] - a[1]),
     }
   }, [data])
-
-  const allCombinationNames = useMemo(() => new Set(hotKeyData.combinationStats.map(([combo]) => combo)), [hotKeyData.combinationStats]);
 
   // Effect to initialize selection to all combinations when data changes
   useEffect(() => {

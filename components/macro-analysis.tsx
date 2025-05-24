@@ -1,10 +1,9 @@
 "use client"
 
-import { useMemo, useState, useEffect, useRef } from "react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { useMemo, useState } from "react"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
 import {
   BarChart,
@@ -12,24 +11,16 @@ import {
   PieChart,
   Pie,
   Cell,
-  Legend,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
 } from "recharts"
-import { AgGridReact } from "ag-grid-react"
-import { ModuleRegistry, AllCommunityModule, themeQuartz } from "ag-grid-community"
-import type { ColDef, GridApi, GridReadyEvent, SelectionChangedEvent, RowClassParams, RowStyle } from "ag-grid-community"
 
-// Register AG Grid modules
-ModuleRegistry.registerModules([AllCommunityModule])
-import type { LogEntry } from "@/lib/log-parser"
 import SharedMacroStatisticsTable, { type MacroStatEntry } from "@/components/shared/macro-statistics-table"
 
 interface MacroAnalysisProps {
-  // data: LogEntry[]; // This might be removable if all info truly comes from allMacroStats
   allMacroStats: MacroStatEntry[];
   selectedMacroNames: Set<string>;
   onSelectionChange: (newSelectedNames: Set<string>) => void;
@@ -55,28 +46,36 @@ const PIE_COLORS = [
   "#E5E5E5",
   "#F0F0F0",
   "#FAFAFA", // Near White
-  "#FFFFFF"  // White (could be problematic if background is also white, but completes 20)
-  // Alternative for last one if background is white: "#EFEFEF"
+  "#FFFFFF"
 ];
 
 const RADIAN = Math.PI / 180;
-const renderCustomizedPieLabel = (props: any) => {
-  const { cx, cy, midAngle, innerRadius, outerRadius, percent, fullName, name } = props;
-  // Calculate position for the label line end and text
-  const radius = innerRadius + (outerRadius - innerRadius) * 0.5; // Default position if inside
-  const labelRadius = outerRadius + 25; // Position labels further out from the pie
+
+interface CustomizedPieLabelProps {
+  cx: number;
+  cy: number;
+  midAngle: number;
+  outerRadius: number;
+  percent: number;
+  fullName?: string;
+  name: string;
+}
+
+const renderCustomizedPieLabel = (props: CustomizedPieLabelProps) => {
+  const { cx, cy, midAngle, outerRadius, percent, fullName, name } = props;
+  const labelRadius = outerRadius + 25;
   const x = cx + labelRadius * Math.cos(-midAngle * RADIAN);
   const y = cy + labelRadius * Math.sin(-midAngle * RADIAN);
-  const effectiveName = fullName || name; // Use fullName if available
+  const effectiveName = fullName || name;
 
   return (
     <text
       x={x}
       y={y}
-      fill="hsl(var(--foreground))" // Use theme foreground color
+      fill="hsl(var(--foreground))"
       textAnchor={x > cx ? "start" : "end"}
       dominantBaseline="central"
-      fontSize={12} // Smaller font size for labels
+      fontSize={12}
     >
       {`${effectiveName} (${(percent * 100).toFixed(0)}%)`}
     </text>
@@ -84,46 +83,24 @@ const renderCustomizedPieLabel = (props: any) => {
 };
 
 export default function MacroAnalysis({
-  // data, // Original data prop, potentially unused now for core logic if allMacroStats is sufficient
   allMacroStats,
   selectedMacroNames,
   onSelectionChange,
 }: MacroAnalysisProps) {
   const [topN, setTopN] = useState(10)
-  const [searchTerm, setSearchTerm] = useState("")
-  const gridApiRef = useRef<GridApi | null>(null)
-  const [isGridReady, setIsGridReady] = useState(false)
   const [chartType, setChartType] = useState<"bar" | "pie">("bar")
 
-  // macroStats calculation is removed, as it now comes from props as allMacroStats
-  // const allMacroNamesFromStats = useMemo(() => new Set(allMacroStats.map(m => m.name)), [allMacroStats]); // This can be recreated if needed locally, or passed if parent computes it
-
-  // Effect to initialize selection to all macros when allMacroStats prop changes
-  // This might be redundant if parent (app/page.tsx) also does this. 
-  // For now, let's assume parent handles initial full selection.
-  // If this component should independently reset to all when its view becomes active and allMacroStats change, keep it.
-  // To avoid potential conflicts, if app/page.tsx is the source of truth for initialization, remove this useEffect.
-  // For now, I will keep it but rely on parent for initial overall selection passed via selectedMacroNames prop.
-  // The SharedMacroStatisticsTable will primarily use the selectedMacroNames prop for its state.
-
-  // This component now directly uses selectedMacroNames from props to derive data for its charts.
   const macrosForAnalysis = useMemo(() => {
-    // If allMacroStats is not yet available or empty, return empty array
     if (!allMacroStats || allMacroStats.length === 0) {
         return [];
     }
-    // If nothing is selected (and there is data), effectively filter to show nothing for analysis
     if (selectedMacroNames.size === 0 && allMacroStats.length > 0) {
       return []; 
     }
-    // If all are selected (based on comparing selectedMacroNames size to allMacroStats length) OR there is no data
-    // This logic might need adjustment if allMacroNamesFromStats was crucial. 
-    // A simpler check: if selectedMacroNames covers all names in allMacroStats
     const allNamesFromProps = new Set(allMacroStats.map(m => m.name));
     if (selectedMacroNames.size === allNamesFromProps.size || allMacroStats.length === 0) {
       return allMacroStats; 
     }
-    // Filter allMacroStats by what's in selectedMacroNames
     return allMacroStats.filter(macro => selectedMacroNames.has(macro.name));
   }, [allMacroStats, selectedMacroNames]);
 
@@ -139,48 +116,6 @@ export default function MacroAnalysis({
     fullName: macro.name,
   }))
 
-  // AG Grid column definitions
-  const columnDefs: ColDef[] = [
-    {
-      headerName: "", 
-      checkboxSelection: true,
-      headerCheckboxSelection: true,
-      width: 50,
-      pinned: 'left',
-      resizable: false,
-      sortable: false,
-      filter: false,
-    },
-    {
-      headerName: "Macro Name",
-      field: "name",
-      sortable: true,
-      filter: true,
-      flex: 2
-    },
-    {
-      headerName: "Total Executions",
-      field: "count",
-      sortable: true,
-      filter: "agNumberColumnFilter",
-      flex: 1
-    },
-    {
-      headerName: "Avg/Day",
-      field: "avgPerDay",
-      sortable: true,
-      filter: "agNumberColumnFilter",
-      flex: 1
-    },
-    {
-      headerName: "Triggers",
-      field: "triggers",
-      flex: 2,
-      sortable: true,
-      filter: true
-    }
-  ]
-
   if (!allMacroStats || allMacroStats.length === 0) { 
     return (
       <div className="space-y-6">
@@ -192,7 +127,6 @@ export default function MacroAnalysis({
             </div>
           </CardContent>
         </Card>
-        {/* Optionally, render the shared table with a message if it also has no data */}
         <SharedMacroStatisticsTable 
           allMacroStats={[]} 
           selectedMacroNames={new Set()} 
@@ -206,7 +140,6 @@ export default function MacroAnalysis({
 
   return (
     <div className="space-y-6">
-      {/* Chart Card with Controls */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Top {topN} Macros Visualization</CardTitle>

@@ -20,9 +20,6 @@ interface AnalysisSidebarProps {
   sidebarOpen: boolean
   onLogDataChange: (data: LogEntry[]) => void
   onAnalysisOptionsChange: (options: AnalysisOptions) => void
-  uniqueMacros: number
-  totalExecutions: number
-  effectiveDateRange: { start: Date; end: Date } | null
 }
 
 export default function AnalysisSidebar({ 
@@ -31,9 +28,6 @@ export default function AnalysisSidebar({
   sidebarOpen, 
   onLogDataChange, 
   onAnalysisOptionsChange,
-  uniqueMacros,
-  totalExecutions,
-  effectiveDateRange
 }: AnalysisSidebarProps) {
   // Local state for sidebar-specific functionality
   const [loadDataOpen, setLoadDataOpen] = useState(true)
@@ -214,11 +208,11 @@ export default function AnalysisSidebar({
                           <div className="space-y-2">
                             <p className="font-medium">File Format</p>
                             <p className="text-xs">
-                              Expected format: "YYYY-MM-DD HH:MM:SS Execute macro "Macro Name" from trigger Trigger Type"
+                              Expected format: &quot;YYYY-MM-DD HH:MM:SS Execute macro &quot;Macro Name&quot; from trigger Trigger Type&quot;
                             </p>
                             <p className="font-medium">Troubleshooting</p>
                             <p className="text-xs">
-                              If file upload isn't working, check the browser console (F12) for debugging information.
+                              If file upload isn&apos;t working, check the browser console (F12) for debugging information.
                             </p>
                           </div>
                         </TooltipContent>

@@ -1,7 +1,7 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from "recharts"
 import type { LogEntry } from "@/lib/log-parser"
@@ -12,6 +12,17 @@ interface TimeAnalysisProps {
   allMacroStats: MacroStatEntry[]
   selectedMacroNames: Set<string>
   onMacroSelectionChange: (newSelectedNames: Set<string>) => void
+}
+
+// Define a more specific type for what peakTime could be
+interface PeakTimeInfo {
+  count: number;
+  // Make all specific time properties optional as they depend on the viewMode
+  hour?: string; 
+  dayName?: string;
+  day?: string;
+  // Add a general label for display regardless of type
+  label: string;
 }
 
 export default function TimeAnalysis({ 
@@ -81,6 +92,28 @@ export default function TimeAnalysis({
   const totalUsage = currentData.reduce((sum, item) => sum + item.count, 0)
   const averageUsage = totalUsage > 0 && currentData.length > 0 ? totalUsage / currentData.length : 0
 
+  const peakTime: PeakTimeInfo = useMemo(() => {
+    if (currentData.length === 0) return { count: 0, label: "N/A" };
+
+    const maxItem = currentData.reduce(
+      (max, item) => (item.count > max.count ? item : max),
+      currentData[0],
+    );
+
+    let label = "N/A";
+    if ('hour' in maxItem && maxItem.hour) label = maxItem.hour;
+    else if ('dayName' in maxItem && maxItem.dayName) label = maxItem.dayName;
+    else if ('day' in maxItem && maxItem.day) label = maxItem.day;
+
+    return {
+      count: maxItem.count,
+      hour: 'hour' in maxItem ? maxItem.hour : undefined,
+      dayName: 'dayName' in maxItem ? maxItem.dayName : undefined,
+      day: 'day' in maxItem ? maxItem.day : undefined,
+      label: label
+    };
+  }, [currentData]);
+
   const getTimeLabel = () => {
     switch (viewMode) {
       case "hourly":
@@ -102,11 +135,6 @@ export default function TimeAnalysis({
         return "day"
     }
   }
-
-  const peakTime = currentData.length > 0 ? currentData.reduce(
-    (max, item) => (item.count > max.count ? item : max),
-    currentData[0],
-  ) : { count: 0 }
 
   // Show empty state if no data
   if (data.length === 0) {
@@ -157,9 +185,9 @@ export default function TimeAnalysis({
         <Card>
           <CardContent className="p-6">
             <div className="text-center">
-              <p className="text-2xl font-bold">{(peakTime as any).count || 0}</p>
+              <p className="text-2xl font-bold">{peakTime.count}</p>
               <p className="text-sm text-muted-foreground">
-                Peak ({viewMode}): {(peakTime as any).hour || (peakTime as any).dayName || (peakTime as any).day || "N/A"}
+                Peak ({viewMode}): {peakTime.label}
               </p>
             </div>
           </CardContent>
@@ -193,8 +221,8 @@ export default function TimeAnalysis({
                   <XAxis dataKey={getXAxisKey()} angle={-45} textAnchor="end" height={80} fontSize={12} />
                   <YAxis />
                   <Tooltip
-                    labelFormatter={(value) => `Date: ${value}`}
-                    formatter={(value) => [`${value} executions`, "Count"]}
+                    labelFormatter={(value: string) => `Date: ${value}`}
+                    formatter={(value: number, name: string) => [`${value} executions`, name]}
                   />
                   <Line
                     type="monotone"
@@ -223,6 +251,8 @@ export default function TimeAnalysis({
         allMacroStats={allMacroStats} 
         selectedMacroNames={selectedMacroNames} 
         onSelectionChange={onMacroSelectionChange} 
+        title="Available Macros (Filter Time Analysis)"
+        description="Select macros below to filter the time-based charts above."
       />
     </div>
   )
