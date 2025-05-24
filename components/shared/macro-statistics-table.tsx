@@ -142,6 +142,9 @@ export default function SharedMacroStatisticsTable({
       <CardHeader>
         <CardTitle>{title}</CardTitle>
         {effectiveDescription && <CardDescription>{effectiveDescription}</CardDescription>}
+        <p className="text-sm text-muted-foreground">
+          Click the filter symbol on a column header to filter.
+        </p>
       </CardHeader>
       <CardContent>
         <div

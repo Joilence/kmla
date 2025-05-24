@@ -120,55 +120,15 @@ export default function TimeAnalysis({
     };
   }, [currentData]);
 
-  // Show empty state if no data
-  if (data.length === 0) {
-    return (
-      <div className="space-y-6">
-        <Card>
-          <CardContent className="flex items-center justify-center py-12">
-            <div className="text-center">
-              <p className="text-2xl font-semibold text-muted-foreground mb-2">Insufficient Data for Time Analysis</p>
-              <p className="text-muted-foreground">Load log data to view time analysis patterns.</p>
-            </div>
-          </CardContent>
-        </Card>
-        {allMacroStats && allMacroStats.length > 0 && (
-          <SharedMacroStatisticsTable 
-            allMacroStats={allMacroStats} 
-            selectedMacroNames={selectedMacroNames} 
-            onSelectionChange={onMacroSelectionChange} 
-            title="Available Macros (Shared)"
-          />
-        )}
-      </div>
-    )
-  }
+  const totalUsage = useMemo(() => {
+    if (currentData.length === 0) return 0;
+    return currentData.reduce((sum, item) => sum + item.count, 0);
+  }, [currentData]);
 
-  // New: Show empty state if filters result in no data, but initial data was present
-  if (currentData.length === 0) {
-    return (
-      <div className="space-y-6">
-        <Card>
-          <CardContent className="flex items-center justify-center py-12">
-            <div className="text-center">
-              <p className="text-2xl font-semibold text-muted-foreground mb-2">No Data for Selected Filters</p>
-              <p className="text-muted-foreground">Try adjusting your macro selection or date range.</p>
-            </div>
-          </CardContent>
-        </Card>
-        <SharedMacroStatisticsTable 
-          allMacroStats={allMacroStats} 
-          selectedMacroNames={selectedMacroNames} 
-          onSelectionChange={onMacroSelectionChange} 
-          title="Available Macros"
-          description="Select macros below to filter the time-based charts above."
-        />
-      </div>
-    );
-  }
-
-  const totalUsage = currentData.reduce((sum, item) => sum + item.count, 0)
-  const averageUsage = totalUsage > 0 && currentData.length > 0 ? totalUsage / currentData.length : 0
+  const averageUsage = useMemo(() => {
+    if (currentData.length === 0 || totalUsage === 0) return 0;
+    return totalUsage / currentData.length;
+  }, [totalUsage, currentData]);
 
   const getTimeLabel = () => {
     switch (viewMode) {
@@ -192,41 +152,45 @@ export default function TimeAnalysis({
     }
   }
 
-  return (
-    <div className="space-y-6">
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card>
-          <CardContent className="p-6">
-            <div className="text-center">
-              <p className="text-2xl font-bold">{totalUsage}</p>
-              <p className="text-sm text-muted-foreground">Total Executions ({viewMode})</p>
-            </div>
-          </CardContent>
-        </Card>
+  let chartDisplayElement;
 
-        <Card>
-          <CardContent className="p-6">
-            <div className="text-center">
-              <p className="text-2xl font-bold">{averageUsage.toFixed(1)}</p>
-              <p className="text-sm text-muted-foreground">Average per {viewMode.slice(0, -2)}</p>
+  if (data.length === 0) {
+    chartDisplayElement = (
+      <Card>
+        <CardHeader>
+          <CardTitle>Usage Pattern</CardTitle>
+        </CardHeader>
+        <CardContent className="flex items-center justify-center py-12 h-96">
+          <div className="text-center">
+            <p className="text-2xl font-semibold text-muted-foreground mb-2">Insufficient Data for Time Analysis</p>
+            <p className="text-muted-foreground">Load log data to view time analysis patterns.</p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  } else if (currentData.length === 0) {
+    chartDisplayElement = (
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle>Usage Pattern - {getTimeLabel()}</CardTitle>
+            <div className="flex space-x-2">
+              <Button variant={viewMode === "hourly" ? "default" : "outline"} onClick={() => setViewMode("hourly")} disabled>By Hour</Button>
+              <Button variant={viewMode === "daily" ? "default" : "outline"} onClick={() => setViewMode("daily")} disabled>By Day</Button>
+              <Button variant={viewMode === "weekly" ? "default" : "outline"} onClick={() => setViewMode("weekly")} disabled>By Weekday</Button>
             </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-6">
-            <div className="text-center">
-              <p className="text-2xl font-bold">{peakTime.count}</p>
-              <p className="text-sm text-muted-foreground">
-                Peak ({viewMode}): {peakTime.label}
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Chart */}
+          </div>
+        </CardHeader>
+        <CardContent className="flex items-center justify-center py-12 h-96">
+          <div className="text-center">
+            <p className="text-lg font-semibold text-muted-foreground mb-2">No Data for Chart</p>
+            <p className="text-muted-foreground">Select macros or adjust filters to display usage patterns.</p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  } else {
+    chartDisplayElement = (
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
@@ -277,15 +241,54 @@ export default function TimeAnalysis({
           </div>
         </CardContent>
       </Card>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Stats Cards - Rendered Unconditionally */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card>
+          <CardContent className="p-6">
+            <div className="text-center">
+              <p className="text-2xl font-bold">{totalUsage}</p>
+              <p className="text-sm text-muted-foreground">Total Executions ({viewMode})</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-6">
+            <div className="text-center">
+              <p className="text-2xl font-bold">{averageUsage.toFixed(1)}</p>
+              <p className="text-sm text-muted-foreground">Average per {viewMode.slice(0, -2)}</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-6">
+            <div className="text-center">
+              <p className="text-2xl font-bold">{peakTime.count}</p>
+              <p className="text-sm text-muted-foreground">
+                Peak ({viewMode}): {peakTime.label}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Chart Display Area */}
+      {chartDisplayElement}
 
       {/* Shared Macro Statistics Table */}
-      <SharedMacroStatisticsTable 
-        allMacroStats={allMacroStats} 
-        selectedMacroNames={selectedMacroNames} 
-        onSelectionChange={onMacroSelectionChange} 
-        title="Available Macros"
-        description="Select macros below to filter the time-based charts above."
-      />
+      {allMacroStats && allMacroStats.length > 0 && (
+        <SharedMacroStatisticsTable 
+          allMacroStats={allMacroStats} 
+          selectedMacroNames={selectedMacroNames} 
+          onSelectionChange={onMacroSelectionChange} 
+          title={data.length === 0 ? "Available Macros (Shared)" : "Available Macros"}
+          description={data.length === 0 ? undefined : ""}
+        />
+      )}
     </div>
   )
 }
