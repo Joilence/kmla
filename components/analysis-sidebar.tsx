@@ -272,7 +272,11 @@ export default function AnalysisSidebar({
                 >
                   <FileText className="mx-auto h-6 w-6 text-muted-foreground mb-2" />
                   <p className="text-xs font-medium mb-2">Drop your log file here, or click to browse</p>
-                  <p className="text-xs text-muted-foreground mb-3">Supports .log and .txt files</p>
+                  <p className="text-xs text-muted-foreground mb-1">Supports .log and .txt files</p>
+                  <p className="text-xs text-muted-foreground mb-3">
+                    <span className="font-medium">Keyboard Maestro users:</span> Upload{" "}
+                    <code className="bg-muted px-1 rounded">~/Library/Logs/Keyboard Maestro/Engine.log</code>
+                  </p>
 
                   <input
                     type="file"
